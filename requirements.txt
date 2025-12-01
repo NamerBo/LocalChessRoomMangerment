@@ -1,0 +1,14 @@
+# 核心Web框架
+waitress==3.0.2
+Flask==2.3.3
+Flask-CORS==4.0.0
+
+# 数据库连接
+mysql-connector-python==8.2.0
+
+# 打包工具
+pyinstaller==6.3.0
+
+# 其他工具（可选）
+python-dotenv==1.0.0  # 用于环境变量管理
+requests==2.31.0      # 用于HTTP请求（如果需要）

@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>棋室营业管理</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--muted:#6b7280;--accent:#2563eb;--success:#16a34a;--danger:#ef4444;--radius:10px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Arial,Helvetica,sans-serif;color:#071029}
+.header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:linear-gradient(90deg,#0ea5e9,#6366f1);color:#fff}
+.container{display:flex;gap:18px;max-width:1200px;margin:20px auto;padding:0 12px}
+.sidebar{width:220px;background:var(--card);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+.nav-btn{display:block;padding:10px;border-radius:8px;border:0;background:transparent;color:#111;text-align:left;margin-bottom:6px;cursor:pointer;font-weight:700}
+.nav-btn.active{background:#eef2ff;color:var(--accent)}
+.main{flex:1}
+.card{background:var(--card);padding:14px;border-radius:10px;box-shadow:0 8px 24px rgba(10,15,25,0.04)}
+.table{width:100%;border-collapse:collapse;margin-top:10px}
+.table th,.table td{padding:8px;border-bottom:1px solid #eef2f7;text-align:left}
+.table th{color:var(--muted)}
+.btn{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#fff;cursor:pointer;font-weight:700}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid #e6eefc}
+.btn.success{background:var(--success)}
+.small{font-size:13px;color:var(--muted)}
+.timer{font-weight:800;color:#0b2336}
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,0.45);z-index:60}
+.modal .box{width:100%;max-width:720px;background:var(--card);padding:16px;border-radius:10px}
+.form-row{display:flex;gap:8px;margin-bottom:10px}
+.form-row input, .form-row select{flex:1;padding:8px;border-radius:8px;border:1px solid #e6eefc}
+.empty{padding:18px;text-align:center;color:var(--muted)}
+@media (max-width:900px){.container{flex-direction:column;padding:12px}.sidebar{width:100%}}
+</style>
+</head>
+<body>
+<header class="header">
+  <h1>棋室营业管理</h1>
+  <div class="small">服务: <span id="server-status">检测中</span></div>
+</header>
+
+<div class="container">
+  <aside class="sidebar card">
+    <button class="nav-btn active" data-tab="dashboard" onclick="openTab('dashboard')">控制面板</button>
+    <button class="nav-btn" data-tab="rooms" onclick="openTab('rooms')">房间管理</button>
+    <button class="nav-btn" data-tab="orders" onclick="openTab('orders')">订单管理</button>
+    <button class="nav-btn" data-tab="products" onclick="openTab('products')">商品管理</button>
+    <button class="nav-btn" data-tab="report" onclick="openTab('report')">营业报表</button>
+  </aside>
+
+  <main class="main">
+    <section id="dashboard" class="card" style="display:block">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2 style="margin:0">控制面板</h2>
+        <div><button class="btn" onclick="reloadAll()">刷新</button></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:12px">
+        <div class="card" style="flex:1"><div class="small">空闲房间</div><div id="stat-available" style="font-size:22px;font-weight:800">-</div></div>
+        <div class="card" style="flex:1"><div class="small">进行中订单</div><div id="stat-active" style="font-size:22px;font-weight:800">-</div></div>
+        <div class="card" style="flex:1"><div class="small">今日营收</div><div id="stat-revenue" style="font-size:22px;font-weight:800">-</div></div>
+      </div>
+    </section>
+
+    <section id="rooms" class="card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2 style="margin:0">房间管理</h2>
+        <div><button class="btn" onclick="loadRooms()">刷新</button> <button class="btn success" onclick="openAddRoom()">添加房间</button></div>
+      </div>
+      <table class="table" id="rooms-table"><thead><tr><th>房间</th><th>类型</th><th>每小时</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section id="orders" class="card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2 style="margin:0">订单管理</h2>
+        <div><button class="btn" onclick="loadOrders(true)">进行中</button> <button class="btn ghost" onclick="loadOrders(false)">全部</button></div>
+      </div>
+      <table class="table" id="orders-table"><thead><tr><th>订单号</th><th>房间</th><th>开始</th><th>时长</th><th>顾客</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section id="products" class="card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2 style="margin:0">商品管理</h2>
+        <div><button class="btn" onclick="loadProducts()">刷新</button> <button class="btn success" onclick="openAddProduct()">添加</button></div>
+      </div>
+      <table class="table" id="products-table"><thead><tr><th>名称</th><th>分类</th><th>价格</th><th>库存</th><th>操作</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section id="report" class="card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2 style="margin:0">营业报表</h2>
+        <div><input id="report-date" type="date" /> <button class="btn" onclick="loadReport()">生成</button></div>
+      </div>
+      <div id="report-result" style="margin-top:12px"></div>
+    </section>
+  </main>
+</div>
+
+<!-- 添加/编辑房间模态 -->
+<div id="room-modal" class="modal"><div class="box card">
+  <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0" id="room-modal-title">添加房间</h3><button class="btn ghost" onclick="closeRoomModal()">关闭</button></div>
+  <div style="margin-top:10px">
+    <div class="form-row"><input id="r-name" placeholder="房间名称/描述"/><input id="r-number" placeholder="房间编号 (可选)"/></div>
+    <div class="form-row"><input id="r-type" placeholder="类型"/><input id="r-price" type="number" step="0.01" placeholder="每小时价格"/></div>
+    <div style="text-align:right"><button class="btn success" onclick="saveRoom()">保存</button></div>
+  </div>
+</div></div>
+
+<!-- 添加商品模态 -->
+<div id="add-product-modal" class="modal"><div class="box card">
+  <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0" id="product-modal-title">添加商品</h3><button class="btn ghost" onclick="closeAddProduct()">关闭</button></div>
+  <div style="margin-top:10px">
+    <div class="form-row"><input id="p-name" placeholder="名称"/><input id="p-price" type="number" step="0.01" placeholder="价格"/></div>
+    <div class="form-row"><input id="p-stock" type="number" placeholder="库存"/><input id="p-cat" placeholder="分类"/></div>
+    <div style="text-align:right"><button class="btn success" onclick="saveProduct()">保存</button></div>
+  </div>
+</div></div>
+
+<!-- 点单模态（在房间/订单中点单） -->
+<div id="order-product-modal" class="modal"><div class="box card">
+  <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">点单 - <span id="op-order-name"></span></h3><button class="btn ghost" onclick="closeOrderProductModal()">关闭</button></div>
+  <div style="margin-top:8px">
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <select id="op-product-select"></select>
+      <input id="op-qty" type="number" value="1" min="1" style="width:80px"/>
+      <button class="btn success" onclick="opAddProduct()">添加</button>
+    </div>
+    <div id="op-list"></div>
+    <div style="text-align:right;margin-top:10px">
+      <button class="btn ghost" onclick="closeOrderProductModal()">取消</button>
+      <button class="btn" onclick="openOrderCheckout()">结账</button>
+    </div>
+  </div>
+</div></div>
+
+<script>
+let currentOrderForModal = null;
+let editingProductId = null;
+let editingRoomId = null;
+
+function openTab(id){
+  document.querySelectorAll('main section').forEach(s=>s.style.display='none');
+  document.getElementById(id).style.display='block';
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.nav-btn[data-tab="'+id+'"]').classList.add('active');
+  if(id==='rooms') loadRooms();
+  if(id==='orders') loadOrders(true);
+  if(id==='products') loadProducts();
+  if(id==='dashboard') reloadAll();
+}
+
+async function api(path, opts){
+  try{
+    const r = await fetch(path, opts);
+    return await r.json();
+  }catch(e){
+    console.error(e);
+    return {success:false,error:e.message||'网络错误'};
+  }
+}
+
+function reloadAll(){ loadRooms(); loadOrders(true); loadProducts(); loadOverview(); }
+
+async function loadOverview(){
+  document.getElementById('server-status').textContent = '正常';
+  const avail = await api('/api/rooms/available');
+  const act = await api('/api/orders?active=1');
+  const rep = await api('/api/report/daily').catch(()=>({success:false}));
+  document.getElementById('stat-available').textContent = avail.success ? avail.data.length : '-';
+  document.getElementById('stat-active').textContent = (act.success && act.data) ? act.data.length : '-';
+  document.getElementById('stat-revenue').textContent = (rep.success && rep.data && rep.data.total_revenue) ? rep.data.total_revenue : '0';
+}
+
+// Rooms
+async function loadRooms(){
+  const res = await api('/api/rooms');
+  const tbody = document.querySelector('#rooms-table tbody');
+  tbody.innerHTML = '';
+  if(!res.success){ tbody.innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>'; return; }
+  res.data.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.room_number||r.name||r.id}</td><td>${r.room_type||'-'}</td><td>${r.price_per_hour||0}</td><td>${r.status}</td>
+      <td>
+        <button class="btn" onclick="openRoom(${r.id})">开房</button>
+        <button class="btn ghost" onclick="openRoomOrders(${r.id})">点单</button>
+        <button class="btn ghost" onclick="editRoom(${r.id})">编辑</button>
+        <button class="btn" onclick="deleteRoom(${r.id})">删除</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function openAddRoom(){ editingRoomId = null; document.getElementById('room-modal-title').textContent='添加房间'; document.getElementById('r-name').value=''; document.getElementById('r-number').value=''; document.getElementById('r-type').value=''; document.getElementById('r-price').value=''; document.getElementById('room-modal').style.display='flex'; }
+function closeRoomModal(){ document.getElementById('room-modal').style.display='none'; editingRoomId = null; }
+
+async function saveRoom(){
+  const name = document.getElementById('r-name').value.trim();
+  const number = document.getElementById('r-number').value.trim();
+  const type = document.getElementById('r-type').value.trim();
+  const price = parseFloat(document.getElementById('r-price').value||0);
+  if(!name){ alert('请填写房间名称'); return; }
+  if(editingRoomId){
+    const res = await api('/api/rooms/'+editingRoomId, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, room_number:number, room_type:type, price_per_hour:price})});
+    if(!res.success) return alert('保存失败:'+ (res.error||''));
+    closeRoomModal(); loadRooms(); return;
+  }
+  const res = await api('/api/rooms', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, room_number:number, room_type:type, price_per_hour:price})});
+  if(!res.success) return alert('创建失败:'+ (res.error||''));
+  closeRoomModal(); loadRooms();
+}
+
+async function editRoom(id){
+  const res = await api('/api/rooms/'+id);
+  if(!res.success) return alert('加载房间失败:'+ (res.error||''));
+  editingRoomId = id;
+  document.getElementById('room-modal-title').textContent='编辑房间';
+  document.getElementById('r-name').value = res.data.name||'';
+  document.getElementById('r-number').value = res.data.room_number||'';
+  document.getElementById('r-type').value = res.data.room_type||'';
+  document.getElementById('r-price').value = res.data.price_per_hour||'';
+  document.getElementById('room-modal').style.display='flex';
+}
+
+async function deleteRoom(id){
+  if(!confirm('确认删除此房间？该操作会在无未结订单时彻底删除。')) return;
+  const res = await api('/api/rooms/'+id, {method:'DELETE'});
+  if(!res.success) return alert('删除失败:'+ (res.error||''));
+  loadRooms();
+}
+
+// Orders / point-of-sale
+async function openRoom(roomId){
+  const res = await api(`/api/rooms/${roomId}/open`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})});
+  if(!res.success){ alert('开房失败: '+(res.error||'未知')); return; }
+  alert('开房成功: '+res.order_number);
+  loadRooms(); loadOrders(true);
+}
+
+async function openRoomOrders(roomId){
+  const res = await api(`/api/orders/room/${roomId}/current`);
+  if(!res.success){
+    if(confirm('房间无进行中订单，是否开房？')) {
+      const op = await api(`/api/rooms/${roomId}/open`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})});
+      if(op.success) return openRoomOrders(roomId);
+      else return alert('开房失败: '+(op.error||''));
+    } else return;
+  }
+  currentOrderForModal = res.data.order_number;
+  document.getElementById('op-order-name').textContent = currentOrderForModal;
+  document.getElementById('order-product-modal').style.display = 'flex';
+  await loadProductOptions();
+  await refreshOrderProductsInModal();
+}
+
+function closeOrderProductModal(){ currentOrderForModal = null; document.getElementById('order-product-modal').style.display='none'; }
+
+async function loadProductOptions(){
+  const res = await api('/api/products');
+  const sel = document.getElementById('op-product-select');
+  sel.innerHTML = '';
+  if(res.success) res.data.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.name} (${p.price}元)`;
+    sel.appendChild(opt);
+  });
+}
+
+async function opAddProduct(){
+  const pid = document.getElementById('op-product-select').value;
+  const qty = parseInt(document.getElementById('op-qty').value||1);
+  if(!currentOrderForModal){ alert('未选择订单'); return; }
+  const res = await api(`/api/orders/${currentOrderForModal}/products`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({product_id:pid, quantity:qty})});
+  if(!res.success) return alert('添加失败: '+(res.error||''));
+  await refreshOrderProductsInModal();
+}
+
+async function refreshOrderProductsInModal(){
+  if(!currentOrderForModal) return;
+  const res = await api(`/api/orders/${currentOrderForModal}/products`);
+  const div = document.getElementById('op-list');
+  div.innerHTML = '';
+  if(!res.success){ div.innerHTML = '<div class="empty">无法加载</div>'; return; }
+  let sum = 0;
+  res.data.forEach(it=>{
+    sum += parseFloat(it.total_price||0);
+    const row = document.createElement('div');
+    row.textContent = `${it.name} x${it.quantity} = ${it.total_price} 元`;
+    div.appendChild(row);
+  });
+  const total = document.createElement('div');
+  total.style.marginTop = '8px';
+  total.innerHTML = `<strong>商品合计: ${sum.toFixed(2)} 元</strong>`;
+  div.appendChild(total);
+}
+
+// Orders list and timers
+async function loadOrders(activeOnly=true){
+  const res = await api('/api/orders' + (activeOnly? '?active=1' : ''));
+  const tbody = document.querySelector('#orders-table tbody');
+  tbody.innerHTML = '';
+  if(!res.success){ tbody.innerHTML = '<tr><td colspan="7" class="empty">加载失败</td></tr>'; return; }
+  res.data.forEach(o=>{
+    const tr = document.createElement('tr');
+    const start = o.start_time || '-';
+    const timerId = 't' + o.order_number;
+    tr.innerHTML = `<td>${o.order_number}</td><td>${o.room_id}</td><td>${start}</td><td id="${timerId}" class="timer">-</td>
+      <td>${o.customer_id||'-'}</td><td>${o.payment_status|| (o.end_time ? '已结账' : '进行中')}</td>
+      <td>
+        <button class="btn ghost" onclick="viewOrderProducts('${o.order_number}')">商品</button>
+        <button class="btn" onclick="openOrderCheckout('${o.order_number}')">结账</button>
+      </td>`;
+    tbody.appendChild(tr);
+    updateTimerForRow(o, timerId);
+  });
+}
+
+function updateTimerForRow(order, timerId){
+  const el = document.getElementById(timerId);
+  if(!el) return;
+  if(order.payment_status === 'paid' || order.end_time) { el.textContent = order.total_hours ? (order.total_hours + 'h') : '-'; return; }
+  function tick(){
+    let start = order.start_time;
+    if(!start){ el.textContent = '-'; return; }
+    const st = new Date(start.replace(' ','T'));
+    const now = new Date();
+    const diff = Math.max(0, Math.floor((now - st) / 1000));
+    const h = Math.floor(diff/3600); const m = Math.floor((diff%3600)/60); const s = diff%60;
+    el.textContent = `${h}h ${m}m ${s}s`;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+async function viewOrderProducts(orderNumber){
+  currentOrderForModal = orderNumber;
+  document.getElementById('op-order-name').textContent = orderNumber;
+  document.getElementById('order-product-modal').style.display = 'flex';
+  await loadProductOptions();
+  await refreshOrderProductsInModal();
+}
+
+async function openOrderCheckout(orderNumber){
+  if(!confirm('确认对订单 '+orderNumber+' 结账？')) return;
+  const res = await api(`/api/orders/${orderNumber}/close`, {method:'POST'});
+  if(!res.success) return alert('结账失败: '+(res.error||''));
+  const pay = res.data && (res.data.grand_total || res.data.current_grand_total || 0);
+  alert('结账成功：应付 ' + pay);
+  closeOrderProductModal();
+  loadRooms(); loadOrders(true); loadOverview();
+}
+
+// products
+async function loadProducts(){
+  const res = await api('/api/products');
+  const tbody = document.querySelector('#products-table tbody');
+  tbody.innerHTML = '';
+  if(!res.success){ tbody.innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>'; return; }
+  res.data.forEach(p=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${p.name}</td><td>${p.category||'-'}</td><td>${p.price}</td><td>${p.stock||0}</td>
+      <td>
+        <button class="btn ghost" onclick="openEditProduct(${p.id})">编辑</button>
+        <button class="btn" onclick="deleteProduct(${p.id})">下架</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function openAddProduct(){ editingProductId = null; document.getElementById('product-modal-title').textContent='添加商品'; document.getElementById('p-name').value=''; document.getElementById('p-price').value=''; document.getElementById('p-stock').value=''; document.getElementById('p-cat').value=''; document.getElementById('add-product-modal').style.display='flex'; }
+function closeAddProduct(){ document.getElementById('add-product-modal').style.display='none'; editingProductId = null; }
+
+async function saveProduct(){
+  const name = document.getElementById('p-name').value.trim();
+  const price = parseFloat(document.getElementById('p-price').value||0);
+  const stock = parseInt(document.getElementById('p-stock').value||0);
+  const cat = document.getElementById('p-cat').value.trim();
+  if(!name || isNaN(price)){ alert('请填写名称和价格'); return; }
+  if(editingProductId){
+    const res = await api('/api/products/'+editingProductId, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, price, stock, category:cat})});
+    if(!res.success) return alert('保存失败: '+(res.error||''));
+    closeAddProduct(); loadProducts(); return;
+  }
+  const res = await api('/api/products', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, price, stock, category:cat})});
+  if(!res.success) return alert('保存失败: '+(res.error||''));
+  closeAddProduct();
+  loadProducts();
+}
+
+async function openEditProduct(id){
+  const res = await api('/api/products/'+id);
+  if(!res.success) return alert('加载商品失败:'+ (res.error||''));
+  editingProductId = id;
+  document.getElementById('product-modal-title').textContent='编辑商品';
+  document.getElementById('p-name').value = res.data.name||'';
+  document.getElementById('p-price').value = res.data.price||'';
+  document.getElementById('p-stock').value = res.data.stock||'';
+  document.getElementById('p-cat').value = res.data.category||'';
+  document.getElementById('add-product-modal').style.display='flex';
+}
+
+async function deleteProduct(id){
+  if(!confirm('确认下架此商品？历史订单保留该商品记录。')) return;
+  const res = await api('/api/products/'+id, {method:'DELETE'});
+  if(!res.success) return alert('下架失败: '+ (res.error||''));
+  loadProducts();
+}
+
+// report
+async function loadReport(){
+  const date = document.getElementById('report-date').value || new Date().toISOString().slice(0,10);
+  const res = await api(`/api/report/daily?date=${date}`);
+  const out = document.getElementById('report-result');
+  out.innerHTML = '';
+  if(!res.success){ out.innerHTML = '<div class="empty">无法生成</div>'; return; }
+  out.innerHTML = `<div class="card"><div class="small">日期</div><strong>${date}</strong><div style="margin-top:8px">订单数: ${res.data.order_count||0} &nbsp; 营收: ${res.data.total_revenue||0}</div></div>`;
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', ()=>{
+  openTab('dashboard');
+  document.getElementById('report-date').value = new Date().toISOString().slice(0,10);
+  loadProductOptions().catch(()=>{});
+});
+</script>
+</body>
+</html>
